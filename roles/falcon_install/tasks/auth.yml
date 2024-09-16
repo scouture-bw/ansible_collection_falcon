@@ -8,6 +8,7 @@
   run_once: yes
   no_log: "{{ falcon_api_enable_no_log }}"
   delegate_to: localhost
+  become: false
 
 - name: Set falcon_cid Block
   when: not falcon_cid
@@ -18,6 +19,7 @@
     register: falcon_api_cid_info
     run_once: yes
     delegate_to: localhost
+    become: false
 
   - name: CrowdStrike Falcon | Set CID received from API
     ansible.builtin.set_fact:

@@ -7,3 +7,4 @@
     hosts:
       - "{{ falcon_uninstall_remove_aid }}"
   delegate_to: localhost
+  become: false

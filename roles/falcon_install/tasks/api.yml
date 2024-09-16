@@ -13,6 +13,7 @@
         filter: "{{ falcon_sensor_update_policy_filter }}"
       register: falcon_sensor_update_policy_info
       delegate_to: localhost
+      become: false
 
     - name: "CrowdStrike Falcon | Validate Sensor Update Policy request"
       ansible.builtin.fail:
@@ -54,6 +55,7 @@
     sort: "version|desc"
   register: falcon_api_installer_list
   delegate_to: localhost
+  become: false
 
 - name: CrowdStrike Falcon | Validate Sensor request
   ansible.builtin.fail:
@@ -72,6 +74,7 @@
   changed_when: false
   register: falcon_sensor_download
   delegate_to: localhost
+  become: false
 
 - name: CrowdStrike Falcon | Copy Sensor Installation Package to remote host (non-windows)
   ansible.builtin.copy:
@@ -97,6 +100,7 @@
     state: absent
   changed_when: false
   delegate_to: localhost
+  become: false
   when: falcon_api_sensor_download_cleanup
 
 - name: CrowdStrike Falcon | Set full file download path (non-windows)
