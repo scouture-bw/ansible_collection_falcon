@@ -1,14 +1,20 @@
 ---
 # tasks file for falcon_uninstall
 - name: Uninstall pretasks
-  ansible.builtin.include_tasks: preuninstall.yml
+  ansible.builtin.include_tasks: check_sensor_installed.yml
   # noqa name[missing]
 
 - name: API block
   when:
-    - falcon_client_id and falcon_client_secret
-    - falcon_sensor_installed
+    - falcon_client_id | default('', true) | length > 0
+    - falcon_client_secret | default('', true) | length > 0
+    - falcon_sensor_installed | bool
   block:
+    - ansible.builtin.include_role:
+        name: falcon_install
+        tasks_from: validate_api_credentials
+      # noqa name[missing]
+
     - ansible.builtin.include_role:
         name: falcon_install
         tasks_from: auth
@@ -17,8 +23,8 @@
 - name: Remove/Hide Host pretasks
   when:
     - falcon.auth is defined
-    - falcon_remove_host
-    - falcon_sensor_installed
+    - falcon_remove_host | bool
+    - falcon_sensor_installed | bool
   block:
     - ansible.builtin.include_tasks: remove_host_pretasks.yml
       # noqa name[missing]
@@ -40,12 +46,13 @@
   become_user: "{{ falcon_windows_become_user }}"
   block:
     - ansible.builtin.include_tasks: win_uninstall.yml
-      # noqa name[missing]
+# noqa name[missing]
 
 # Hide host
 - name: Hide host
   when:
     - falcon.auth is defined
+    - falcon_remove_host | bool
     - falcon_uninstall_remove_aid is defined
   block:
     - ansible.builtin.include_tasks: hide_host.yml

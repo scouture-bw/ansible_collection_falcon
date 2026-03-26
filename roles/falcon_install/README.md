@@ -1,9 +1,9 @@
 # crowdstrike.falcon.falcon_install
 
-This role installs the CrowdStrike Falcon Sensor. It provides the flexibility to install the sensor using the CrowdStrike API, a local file, or a remote URL.
+Installs the CrowdStrike Falcon Sensor. It provides the flexibility to install the sensor using the CrowdStrike API, a local file, or a remote URL.
 
-> [!NOTE]
-> Please note that for Linux and macOS, this role only handles the installation of the sensor. To configure and start the sensor, please use the [falcon_configure](../falcon_configure/) role after the sensor is installed.
+> [!IMPORTANT]
+> On Linux and macOS systems, running this role alone is insufficient for a fully operational Falcon sensor deployment. To complete the setup, you must also run the [falcon_configure](https://github.com/CrowdStrike/ansible_collection_falcon/blob/main/roles/falcon_configure/) role after installing the sensor with this role.
 
 ## Requirements
 
@@ -29,7 +29,7 @@ The following variables are currently supported:
 - `falcon_allow_downgrade` - Whether or not to allow downgrading the sensor version (bool, default: ***false***)
 - `falcon_gpg_key_check` - Whether or not to verify the Falcon sensor Linux based package (bool, default: ***true***)
   - :warning: When `falcon_install_method` is set to **api**, this value will be fetched by the API unless specified.
-- `falcon_install_tmp_dir` - Temporary Linux and MacOS installation directory for the Falson Sensor (string, default: ***/tmp***)
+- `falcon_install_tmp_dir` - Temporary Linux and MacOS installation directory for the Falson Sensor (string, default: ***/tmp/falcon-sensor***)
 - `falcon_retries` - Number of attempts to download the sensor (int, default: ***3***)
 - `falcon_delay` - Number of seconds before trying another download attempt (int, default: ***3***)
 
@@ -44,7 +44,7 @@ The following variables are currently supported:
     - **us-gov-1** -> api.laggar.gcw.crowdstrike.com
     - **eu-1** -> api.eu-1.crowdstrike.com
 - `falcon_api_enable_no_log` - Whether to enable or disable the logging of sensitive data being exposed in API calls (bool, default: ***true***)
-- `falcon_api_sensor_download_path` - Local directory path to download the sensor to (string, default: ***null***)
+- `falcon_api_sensor_download_path` - Local directory path to download the sensor to (string, default: ***/tmp/falcon-sensor***)
 - `falcon_api_sensor_download_mode` - The file permissions to set on the downloaded sensor (string, default: ***null***)
 - `falcon_api_sensor_download_owner` - The owner to set on the downloaded sensor (string, default: ***null***)
 - `falcon_api_sensor_download_group` - The group to set on the downloaded sensor (string, default: ***null***)
@@ -53,6 +53,11 @@ The following variables are currently supported:
 - `falcon_sensor_version` - Sensor version to install (string, default: ***null***)
 - `falcon_sensor_version_decrement` - Sensor N-x version to install (int, default: ***0*** [latest])
 - `falcon_sensor_update_policy_name` - Sensor update policy used to control sensor version (string, default: ***null***)
+
+### Maintenance Token Variables
+
+- `falcon_maintenance_token` - Maintenance token for sensor operations when uninstall and maintenance protection is enabled (string, default: ***null***)
+  > Required for sensor versions 7.20+ when protection is armed during upgrades/downgrades. Can be retrieved using the maintenance_token lookup plugin or provided manually.
 
 ### File Installation Variables
 
@@ -70,14 +75,16 @@ The following variables are currently supported:
 - `falcon_cid` - Specify CrowdStrike Customer ID with Checksum (string, default: ***null***)
 - `falcon_windows_install_retries` - Number of times to retry sensor install on windows (int, default: ***10***)
 - `falcon_windows_install_delay` - Number of seconds to wait to retry sensor install on windows in the event of a failure (int, default: ***120***)
-- `falcon_windows_tmp_dir` - Temporary Windows installation directory for the Falson Sensor (string, default: ***%SYSTEMROOT%\\Temp***)
+- `falcon_windows_tmp_dir` - Temporary Windows installation directory for the Falson Sensor (string, default: ***%SYSTEMROOT%\\Temp\\falcon-sensor***)
 - `falcon_windows_install_args` - Additional Windows install arguments (string, default: ***/norestart***)
+  - Supports `GROUPING_TAGS=tag1,tag2` for setting tags at install time
+  - For post-installation tag management, use `falcon_tags` in the [falcon_configure](../falcon_configure/) role
 - `falcon_windows_uninstall_args` - Additional Windows uninstall arguments (string, default: ***/norestart***)
 - `falcon_windows_become` - Whether to become a privileged user on Windows (bool, default: ***true***)
 - `falcon_windows_become_method` - The way to become a privileged user on Windows (string, default: ***runas***)
 - `falcon_windows_become_user` - The privileged user to install the sensor on Windows (string, default: ***SYSTEM***)
 
-See [defaults/main.yml](defaults/main.yml) for more details on these variables.
+See [defaults/main.yml](https://github.com/CrowdStrike/ansible_collection_falcon/blob/main/roles/falcon_install/defaults/main.yml) for more details on these variables.
 
 ## Falcon API Permissions
 
@@ -93,7 +100,58 @@ Ensure the following API scopes are enabled (***if applicable***) for this role:
 
 ## Dependencies
 
-- Privilege escalation is required for this role to function properly.
+- Privilege escalation (sudo/runas) is required for this role to function properly.
+  > See [Privilege Escalation Requirements](https://github.com/CrowdStrike/ansible_collection_falcon/blob/main/README.md#privilege-escalation-requirements) for more information.
+
+## Maintenance Token Best Practices
+
+When working with protected Falcon sensors (versions 7.20+ for Linux), CrowdStrike recommends the following approaches:
+
+### **Recommended: Sensor Update Policy Management**
+
+The preferred method is to temporarily move hosts to a maintenance policy that has uninstall and maintenance protection disabled:
+
+1. Create a sensor update policy for maintenance with:
+   - Uninstall and maintenance protection **disabled**
+   - Sensor version updates **off**
+2. Move hosts to the maintenance policy before sensor operations
+3. Perform sensor upgrade/downgrade/reinstall
+4. Move hosts back to their original policies
+
+### **Alternative: Bulk Maintenance Token**
+
+When policy management isn't feasible, use bulk maintenance tokens:
+
+> [!IMPORTANT]
+> Bulk tokens work across multiple hosts and are more efficient than host-specific tokens. Ensure bulk maintenance tokens are enabled in your CrowdStrike environment.
+
+Using the lookup plugin via API:
+
+```yaml
+---
+- hosts: all
+  vars:
+    falcon_client_id: <FALCON_CLIENT_ID>
+    falcon_client_secret: <FALCON_CLIENT_SECRET>
+  roles:
+  - role: crowdstrike.falcon.falcon_install
+    vars:
+      falcon_maintenance_token: "{{ lookup('crowdstrike.falcon.maintenance_token',
+                                          bulk=true,
+                                          client_id=falcon_client_id,
+                                          client_secret=falcon_client_secret) }}"
+```
+
+Alternatively you can provide a pre-obtained token:
+
+```yaml
+---
+- hosts: all
+  roles:
+  - role: crowdstrike.falcon.falcon_install
+    vars:
+      falcon_maintenance_token: "your-maintenance-token-here"
+```
 
 ## Example Playbooks
 
@@ -187,6 +245,8 @@ This example installs and configures the Falcon Sensor on Windows:
       falcon_windows_become_method: runas
       falcon_windows_become_user: SYSTEM
 ```
+
+----------
 
 ## License
 

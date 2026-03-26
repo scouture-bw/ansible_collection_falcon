@@ -20,7 +20,7 @@ description:
   - Manages the network containment state of Falcon hosts.
   - To restrict a host that may be compromised from making network connections, contain
     it within the network. Lift containment to restore its regular communication capabilities.
-  - The module will return a list of successfull and failed hosts agent IDs (AIDs) for
+  - The module will return a list of successful and failed hosts agent IDs (AIDs) for
     the action performed.
 
 options:
@@ -68,12 +68,12 @@ EXAMPLES = r"""
     hosts:
       - "12345678901234567890"
       - "09876543210987654321"
-    contained: no
+    contained: false
 
 - name: Contain all Linux hosts in RFM (using host_ids lookup)
   crowdstrike.falcon.host_contain:
     hosts: "{{ lookup('crowdstrike.falcon.host_ids', contain_filter) }}"
-    contained: yes
+    contained: true
   vars:
     linux_rfm_filter: >
       platform_name:'Linux' +
@@ -204,7 +204,7 @@ def main():
 
     # If we get nothing back, handle the error
     if not good and not bad:
-        handle_return_errors(module, falcon, query_result)
+        handle_return_errors(module, result, query_result)
 
     # Create a mapping for passed-in host IDs to manage their states
     host_mapping = {host_id: "" for host_id in hosts}

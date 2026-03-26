@@ -1,6 +1,7 @@
+---
 galaxy_info:
   role_name: falcon_uninstall
-  author: CrowdStrike Solution Architecture
+  author: CrowdStrike Solution Architects
   description: Uninstall CrowdStrike's Falcon sensor using Ansible.
   company: CrowdStrike
 
@@ -17,8 +18,7 @@ galaxy_info:
   # - CC-BY-4.0
   license: GPL-3.0-or-later
 
-
-  min_ansible_version: "2.11"
+  min_ansible_version: "2.15"
 
   # If this a Container Enabled role, provide the minimum Ansible Container version.
   # min_ansible_container_version:
@@ -29,35 +29,6 @@ galaxy_info:
   # To view available platforms and versions (or releases), visit:
   # https://galaxy.ansible.com/api/v1/platforms/
   #
-  platforms:
-    - name: "Amazon Linux"
-      versions:
-        - "2"
-    - name: Amazon
-      versions:
-        - "2018.03"
-        - "2017.09"
-    - name: Debian
-      versions:
-        - "stretch"
-        - "buster"
-        - "bullseye"
-    - name: EL
-      versions:
-        - "6"
-        - "7"
-        - "8"
-    - name: SLES
-      versions:
-        - "15"
-        - "12SP1"
-        - "12"
-        - "11SP4"
-    - name: Ubuntu
-      versions:
-        - "focal"
-        - "bionic"
-        - "xenial"
 
   galaxy_tags:
     # List tags for your role here, one per line. A tag is a keyword that describes

@@ -4,6 +4,239 @@ Ansible CrowdStrike Falcon Collection Release Notes
 
 .. contents:: Topics
 
+v4.11.1
+=======
+
+Release Summary
+---------------
+
+| Release Date: 2026-03-09
+| `Release Notes: <https://github.com/CrowdStrike/ansible_collection_falcon/releases/tag/4.11.1>`__
+
+Bugfixes
+--------
+
+- falcon_install role - Fix ``ansible_facts['machine']`` undefined error on Windows hosts when using Sensor Update Policy (https://github.com/CrowdStrike/ansible_collection_falcon/issues/680)
+- falcon_install role - Fix incorrect falcon_os_version for Amazon Linux 2 arm64 by setting the API-expected value '2 - arm64' for aarch64 architecture (https://github.com/CrowdStrike/ansible_collection_falcon/issues/682).
+- falcon_install role - Fix malformed API filter when ``falcon_sensor_version`` is passed via extra args (https://github.com/CrowdStrike/ansible_collection_falcon/issues/679)
+
+v4.11.0
+=======
+
+Release Summary
+---------------
+
+| Release Date: 2026-01-29
+| `Release Notes: <https://github.com/CrowdStrike/ansible_collection_falcon/releases/tag/4.11.0>`__
+
+Minor Changes
+-------------
+
+- falcon_configure role - Add support for CsSensorSettings utility on Windows sensor 6.42+ to configure grouping tags post-installation (https://github.com/CrowdStrike/ansible_collection_falcon/issues/304)
+
+Bugfixes
+--------
+
+- sensor_update_builds_info module - Sanitize sensor_version fields to remove LTS suffix that causes sensor download API failures (https://github.com/CrowdStrike/falcon-scripts/issues/460).
+- sensor_update_policy_info module - Fix NoneType error when policy variants field is null (https://github.com/CrowdStrike/falcon-scripts/issues/460).
+- sensor_update_policy_info module - Sanitize sensor_version fields to remove LTS suffix that causes sensor download API failures (https://github.com/CrowdStrike/falcon-scripts/issues/460).
+
+v4.10.1
+=======
+
+Release Summary
+---------------
+
+| Release Date: 2026-01-20
+| `Release Notes: <https://github.com/CrowdStrike/ansible_collection_falcon/releases/tag/4.10.1>`__
+
+Minor Changes
+-------------
+
+- lookup plugins - Add us-gov-2 to valid cloud regions
+- lookup plugins - Refactor shared authentication logic into plugin_utils/falconpy_utils.py for DRY compliance across host_ids, maintenance_token, and fctl_child_cids plugins
+
+Bugfixes
+--------
+
+- falcon_install role - Fix type comparison error when falcon_sensor_version_decrement is passed as a string (https://github.com/CrowdStrike/ansible_collection_falcon/issues/655)
+- host_contain module - Fix TypeError when calling handle_return_errors with wrong argument type (https://github.com/CrowdStrike/ansible_collection_falcon/issues/666).
+- host_hide module - Fix TypeError when calling handle_return_errors with wrong argument type (https://github.com/CrowdStrike/ansible_collection_falcon/issues/666).
+- lookup plugins - Add early authentication validation to provide clear error messages when OAuth credentials are invalid, instead of failing on subsequent API calls (https://github.com/CrowdStrike/ansible_collection_falcon/issues/664)
+
+v4.10.0
+=======
+
+Release Summary
+---------------
+
+| Release Date: 2025-11-13
+| `Release Notes: <https://github.com/CrowdStrike/ansible_collection_falcon/releases/tag/4.10.0>`__
+
+Minor Changes
+-------------
+
+- falcon_configure role - Add maintenance token support for sensor configuration when protection is enabled
+- falcon_install role - Add maintenance token support for upgrade/downgrade scenarios when protection is enabled
+- falcon_install role - Fixes DEB system service management issue after package operation changes
+- falcon_uninstall role - Add maintenance token support for sensor versions 7.20+ with uninstall and maintenance protection enabled
+- falcon_uninstall role - Added shared check_sensor_installed.yml task for reusable sensor detection across roles
+- falconctl - add ability to pass in maintenance token
+- host_group module - Add new module to manage CRUD operations for Falcon host groups including create, update, delete, and host membership management (addresses
+- host_group_info module - Add new module to retrieve information about Falcon host groups with filtering, pagination, and optional member details (addresses
+- hunting_rule_download - Add new module for downloading CrowdStrike Falcon Hunting rule archives with advanced FQL filtering capabilities
+- ngsiem_search module - Add new module to execute CQL searches against Next-Gen SIEM repositories for incident response and threat hunting (addresses
+- sensor_update_policy module - Manage Falcon sensor update policies with CRUD operations (https://github.com/CrowdStrike/ansible_collection_falcon/issues/491)
+
+Bugfixes
+--------
+
+- falcon_install role - Remove DEB-specific GPG key handling to fix Ubuntu 22.04 installation failures when falcon_gpg_key_check is true
+
+New Modules
+-----------
+
+- crowdstrike.falcon.host_group - Manage Falcon host groups
+- crowdstrike.falcon.host_group_info - Get information about Falcon host groups
+- crowdstrike.falcon.hunting_rule_download - Download CrowdStrike Falcon Hunting rule archives
+- crowdstrike.falcon.ngsiem_search - Execute searches against CrowdStrike Next-Gen SIEM repositories
+- crowdstrike.falcon.sensor_update_policy - Manage Falcon sensor update policies
+
+v4.9.1
+======
+
+Release Summary
+---------------
+
+| Release Date: 2025-10-29
+| `Release Notes: <https://github.com/CrowdStrike/ansible_collection_falcon/releases/tag/4.9.1>`__
+
+Bugfixes
+--------
+
+- modernizes the collection's code quality tooling and resolves all outstanding ansible-lint violations while establishing a more efficient development workflow (https://github.com/CrowdStrike/ansible_collection_falcon/pull/630)
+- replace fail modules with assert modules for API authentication pre-requisite validations across all roles, consolidate duplicated API validation blocks, and improve user feedback with success messages (https://github.com/CrowdStrike/ansible_collection_falcon/pull/638).
+
+v4.9.0
+======
+
+Release Summary
+---------------
+
+| Release Date: 2025-10-14
+| `Release Notes: <https://github.com/CrowdStrike/ansible_collection_falcon/releases/tag/4.9.0>`__
+
+Minor Changes
+-------------
+
+- Added 'falcon_sensor_cloud' variable to falcon_configure role to specify cloud region during sensor configuration (us-1, us-2, eu-1, us-gov-1, us-gov-2).
+- Added support for the '--cloud' parameter in falconctl and falconctl_info modules for Falcon sensor v7.28+ unified installers to resolve AID generation timeout issues (https://github.com/CrowdStrike/ansible_collection_falcon/issues/625).
+- Enhanced falconctl module with graceful handling of unrecognized parameters - now generates host-specific warnings instead of failing when older sensors don't support newer parameters.
+- Improved multi-host deployment experience by adding hostname context to parameter compatibility warnings, enabling administrators to identify which specific hosts need sensor upgrades.
+
+Bugfixes
+--------
+
+- Fixed assert statements and retry loops to handle null values properly in Ansible 12's stricter conditional validation.
+- Fixed conditional evaluation compatibility with ansible-core >=2.19 (Ansible 12) by converting string-based conditionals to explicit boolean comparisons across all roles (https://github.com/CrowdStrike/ansible_collection_falcon/issues/620).
+- Standardized conditional patterns to use consistent 'variable | default("", true) | length > 0' syntax for string variables and 'variable | bool' for boolean variables throughout the collection.
+
+v4.8.1
+======
+
+Release Summary
+---------------
+
+| Release Date: 2025-08-08
+| `Release Notes: <https://github.com/CrowdStrike/ansible_collection_falcon/releases/tag/4.8.1>`__
+
+Bugfixes
+--------
+
+- falcon_install role - Fix falcon_os_version for Amazon Linux 2 by removing wildcards that caused compatibility issues with sensor installation.
+- host_hide module - Raise errors back to Ansible when the status code returned from the API is a 403
+
+v4.8.0
+======
+
+Release Summary
+---------------
+
+| Release Date: 2025-05-20
+| `Release Notes: <https://github.com/CrowdStrike/ansible_collection_falcon/releases/tag/4.8.0>`__
+
+Minor Changes
+-------------
+
+- intel_rule_download - added new module to download Intel Rules files (https://github.com/CrowdStrike/ansible_collection_falcon/issues/587)
+- intel_rule_info - added new info module for Intel Rules files (https://github.com/CrowdStrike/ansible_collection_falcon/issues/587)
+
+v4.7.3
+======
+
+Release Summary
+---------------
+
+| Release Date: 2025-04-21
+| `Release Notes: <https://github.com/CrowdStrike/ansible_collection_falcon/releases/tag/4.7.3>`__
+
+Minor Changes
+-------------
+
+- falcon_install - add Falcon Linux Sensor RPM signing GPG key, 2025 (https://github.com/CrowdStrike/ansible_collection_falcon/pull/599)
+
+v4.7.2
+======
+
+Release Summary
+---------------
+
+| Release Date: 2024-12-13
+| `Release Notes: <https://github.com/CrowdStrike/ansible_collection_falcon/releases/tag/4.7.2>`__
+
+Bugfixes
+--------
+
+- falcon_configure - Fixed issue where the bool filter was incorrectly used with provisioning token when clause for master image prep (https://github.com/CrowdStrike/ansible_collection_falcon/pull/585)
+- falcon_configure - fix issue where AID generation task would fail/timeout (https://github.com/CrowdStrike/ansible_collection_falcon/pull/586)
+- falcon_install - fixes issue with premature localhost deletion of downloaded sensor (https://github.com/CrowdStrike/ansible_collection_falcon/pull/584)
+- falcon_install - improves error message when using falcon_sensor_version_decrement but not enough historical sensors are available (https://github.com/CrowdStrike/ansible_collection_falcon/pull/588)
+- falcon_uninstall - add missing when clause for removing host from UI (https://github.com/CrowdStrike/ansible_collection_falcon/pull/582)
+
+v4.7.1
+======
+
+Release Summary
+---------------
+
+| Release Date: 2024-11-04
+| `Release Notes: <https://github.com/CrowdStrike/ansible_collection_falcon/releases/tag/4.7.1>`__
+
+Bugfixes
+--------
+
+- win_uninstall - add new windows sensor installer name to uninstall regex for Ansible to be able to uninstall the sensor from package cache (https://github.com/CrowdStrike/ansible_collection_falcon/pull/575)
+
+v4.7.0
+======
+
+Release Summary
+---------------
+
+| Release Date: 2024-10-30
+| `Release Notes: <https://github.com/CrowdStrike/ansible_collection_falcon/releases/tag/4.7.0>`__
+
+Minor Changes
+-------------
+
+- sensor_download - adds the ability to lock files to prevent collision when downloading the sensor (https://github.com/CrowdStrike/ansible_collection_falcon/pull/569)
+
+Bugfixes
+--------
+
+- falcon_configure - Fix truthy condition for falcon_cid and falcon_provisioning_token (https://github.com/CrowdStrike/ansible_collection_falcon/pull/565)
+- falcon_install - fix issue with temp directories being random or non-existent (https://github.com/CrowdStrike/ansible_collection_falcon/pull/569)
+
 v4.6.0
 ======
 

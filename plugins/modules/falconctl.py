@@ -40,7 +40,7 @@ options:
     description:
       - Installation tokens prevent unauthorized hosts from being accidentally or maliciously added to your customer ID (CID).
       - Optional security measure for your CID.
-      - This paramter requires supplying a C(cid).
+      - This parameter requires supplying a C(cid).
     type: str
   aid:
     description:
@@ -99,6 +99,20 @@ options:
       - C(backend) is only available in sensor versions that support the C(--backend) option (>6.46.0).
       - "Valid Options are: C('auto'|'bpf'|'kernel')"
     type: str
+  cloud:
+    description:
+      - Specify the cloud region for the Falcon sensor to connect to.
+      - C(cloud) is only available in sensor versions 7.28.0 and above with unified installer support.
+      - This parameter helps the sensor connect to the correct cloud region and can resolve AID generation timeouts.
+      - "Valid Options are: C('us-1'|'us-2'|'eu-1'|'us-gov-1'|'us-gov-2')"
+    type: str
+    choices: ['us-1', 'us-2', 'eu-1', 'us-gov-1', 'us-gov-2']
+  maintenance_token:
+    description:
+      - Maintenance token required for sensor operations when uninstall and maintenance protection is enabled.
+      - Required for sensor versions 7.20+ when protection is armed.
+      - Used to disable protection before uninstall, upgrade, or configuration changes.
+    type: str
 """
 
 EXAMPLES = r"""
@@ -113,6 +127,12 @@ EXAMPLES = r"""
     cid: 1234567890ABCDEF1234567890ABCDEF-12
     provisioning_token: 12345678
 
+- name: Set CrowdStrike Falcon CID with Cloud Region (Sensor v7.28+)
+  crowdstrike.falcon.falconctl:
+    state: present
+    cid: 1234567890ABCDEF1234567890ABCDEF-12
+    cloud: us-2
+
 - name: Delete CrowdStrike Falcon CID
   crowdstrike.falcon.falconctl:
     state: absent
@@ -121,16 +141,17 @@ EXAMPLES = r"""
 - name: Delete Agent ID to Prep Master Image
   crowdstrike.falcon.falconctl:
     state: absent
-    aid: yes
+    aid: true
 
 - name: Configure Falcon Sensor Proxy
   crowdstrike.falcon.falconctl:
     state: present
-    apd: no
+    apd: false
     aph: example.com
     app: 8080
 """
 
+import platform
 import re
 
 from ansible.module_utils.basic import AnsibleModule
@@ -152,6 +173,8 @@ VALID_PARAMS = {
         "tags",
         "provisioning_token",
         "backend",
+        "cloud",
+        "maintenance_token",
     ],
     "d": [
         "cid",
@@ -164,6 +187,7 @@ VALID_PARAMS = {
         "tags",
         "provisioning_token",
         "backend",
+        "cloud",
     ],
 }
 
@@ -188,7 +212,7 @@ class FalconCtl(object):
 
     @classmethod
     def __list_to_string(cls, value):
-        """Converts paramaters passed as lists to strings"""
+        """Converts parameters passed as lists to strings"""
         if isinstance(value, list):
             # Make a copy and return it
             new_value = value[:]
@@ -203,7 +227,28 @@ class FalconCtl(object):
 
         # Check if any error keyword is found in output[2]
         if any(keyword in output[2] for keyword in error_keywords):
-            self.module.fail_json(msg="ERROR: %s" % (output[2].splitlines()[0]))
+            error_msg = output[2].splitlines()[0]
+
+            # Handle unrecognized option gracefully (generic for any parameter)
+            if "unrecognized option" in error_msg:
+                # Extract parameter name using regex (re module already imported)
+                match = re.search(r"unrecognized option '(--[^'=\s]+)", error_msg)
+                param_name = match.group(1) if match else "unknown parameter"
+
+                # Get hostname for context (fallback chain for reliability)
+                hostname = (
+                    platform.node() or
+                    'unknown-host'
+                )
+                warning_msg = (
+                    f"Host {hostname}: Parameter {param_name} was skipped - not supported by this sensor version. "
+                    f"Consider upgrading your sensor for full parameter support."
+                )
+                self.module.warn(warning_msg)
+                return  # Continue execution instead of failing
+            else:
+                # All other error types still fail as before
+                self.module.fail_json(msg="ERROR: %s" % error_msg)
 
     @classmethod
     def __validate_regex(cls, string, regex, flags=re.IGNORECASE):
@@ -278,7 +323,7 @@ class FalconCtl(object):
         return values
 
     def execute(self):
-        """Run the falconctl commmand"""
+        """Run the falconctl command"""
         cmd = self.add_args(self.params["state"])
         if not self.module.check_mode:
             self.__run_command(cmd)
@@ -296,7 +341,7 @@ class FalconCtl(object):
         return get_options(values)
 
     def validate_params(self, params):
-        """Ensure paramaters are valid"""
+        """Ensure parameters are valid"""
 
         if params["provisioning_token"]:
             # Ensure cid is also passed
@@ -335,7 +380,7 @@ class FalconCtl(object):
         self.check_param("backend", ["auto", "bpf", "kernel"], True)
 
     def check_param(self, param, options, to_lower=False):
-        """Validate single paramater"""
+        """Validate single parameter"""
         if self.params[param]:
             parameter = self.params[param].lower() if to_lower else self.params[param]
 
@@ -369,6 +414,12 @@ def main():  # pylint: disable=missing-function-docstring
         billing=dict(required=False, type="str"),
         tags=dict(required=False, type="str"),
         backend=dict(required=False, type="str"),
+        cloud=dict(
+            required=False,
+            choices=["us-1", "us-2", "eu-1", "us-gov-1", "us-gov-2"],
+            type="str",
+        ),
+        maintenance_token=dict(required=False, no_log=True, type="str"),
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)

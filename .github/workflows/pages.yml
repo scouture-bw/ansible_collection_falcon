@@ -7,6 +7,9 @@ on:
   # Run manually if needed
   workflow_dispatch:
 
+permissions:  # added using https://github.com/step-security/secure-repo
+  contents: read
+
 jobs:
   build:
     permissions:
@@ -14,17 +17,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
 
-      - name: Build docs
-        uses: addnab/docker-run-action@v3
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          registry: quay.io
-          image: quay.io/crowdstrike/ansible-doc-builder:latest
-          options: -v ${{ github.workspace }}:/usr/share/ansible/collections/ansible_collections/crowdstrike/falcon
-          run: /build.sh
+          python-version: '3.12'
+
+      - name: Build docs
+        run: |
+          # Install dependencies
+          pip install ansible-core antsibull-docs
+
+          # Install collection
+          ansible-galaxy collection build -f
+          ansible-galaxy collection install crowdstrike-falcon-*.tar.gz
+
+          # Create temp build directory
+          TEMP_DIR=$(mktemp -d)
+
+          # Initialize sphinx documentation structure
+          antsibull-docs sphinx-init --use-current --squash-hierarchy --dest-dir ${TEMP_DIR} crowdstrike.falcon
+
+          # Install doc build dependencies
+          pip install -r ${TEMP_DIR}/requirements.txt
+
+          # Build HTML docs
+          cd ${TEMP_DIR} && ./build.sh
+
+          # Copy output to expected location
+          mkdir -p ${{ github.workspace }}/html
+          cp -r ${TEMP_DIR}/build/html/* ${{ github.workspace }}/html/
+          touch ${{ github.workspace }}/html/.nojekyll
 
       - name: Commit files
         run: |
@@ -36,7 +62,7 @@ jobs:
           git commit -m "Updating gh-pages docs"
 
       - name: Push changes
-        uses: ad-m/github-push-action@master
+        uses: ad-m/github-push-action@77c5b412c50b723d2a4fbc6d71fb5723bcd439aa # master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: gh-pages

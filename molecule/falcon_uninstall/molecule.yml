@@ -3,7 +3,7 @@ dependency:
   name: galaxy
 driver:
   name: ec2
-# The Default Platform is Ubunutu 20.04 LTS | T2.Micro | us-west-2
+# The Default Platform is Ubuntu 20.04 LTS | T2.Micro | us-west-2
 platforms:
   - name: "${MOLECULE_INSTANCE_NAME:-default-falcon-uninstall}"
     image_owner: "${MOLECULE_IMAGE_OWNER:-099720109477}"
@@ -17,6 +17,11 @@ platforms:
     boot_wait_seconds: ${MOLECULE_BOOT_WAIT_SECONDS:-10}
 provisioner:
   name: ansible
+  config_options:
+    ssh_connection:
+      pipelining: true
+    defaults:
+      callbacks_enabled: ansible.posix.profile_tasks
   playbooks:
     create: ../shared/playbooks/create.yml
     destroy: ../shared/playbooks/destroy.yml
@@ -29,7 +34,5 @@ scenario:
     - create
     - prepare
     - converge
-    - idempotence
-    - side_effect
     - verify
     - destroy

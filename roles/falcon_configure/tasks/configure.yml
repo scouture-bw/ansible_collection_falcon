@@ -2,6 +2,13 @@
 - name: Linux Block
   when: ansible_facts['distribution'] != "MacOSX"
   block:
+    - name: CrowdStrike Falcon | Disable Maintenance Protection (if token provided)
+      crowdstrike.falcon.falconctl:
+        maintenance_token: "{{ falcon_maintenance_token }}"
+        state: "present"
+      when:
+        - falcon_maintenance_token | default('', true) | length > 0
+
     - name: CrowdStrike Falcon | Configure Falcon Sensor Options (Linux)
       crowdstrike.falcon.falconctl:
         cid: "{{ options.cid }}"
@@ -15,6 +22,7 @@
         billing: "{{ options.billing }}"
         tags: "{{ options.tags }}"
         backend: "{{ options.backend }}"
+        cloud: "{{ options.cloud }}"
         state: "{{ 'present' if falcon_option_set else 'absent' }}"
       register: falconctl_result
 
@@ -26,44 +34,49 @@
       ansible.builtin.service:
         name: falcon-sensor
         state: "{{ falcon_service_state | default('restarted') }}"
-        enabled: yes
+        enabled: true
       when:
-        - info.falconctl_info.cid
+        - info.falconctl_info.cid | default('', true) | length > 0
         - falconctl_result.changed
-      # noqa args[module]
-      # noqa no-handler
+    # noqa args[module]
+    # noqa no-handler
 
     # Wait for aid to be generated
     - name: CrowdStrike Falcon | Wait for Falcon Sensor to Generate AID
       crowdstrike.falcon.falconctl_info:
         name:
           - aid
-      register: info
-      retries: 6
-      delay: 10
-      until: info.falconctl_info.aid
+      register: get_aid
+      retries: "{{ falcon_aid_retries | int }}"
+      delay: "{{ falcon_aid_delay | int }}"
+      until: get_aid.falconctl_info.aid | default('', true) | length > 0
       when:
-        - info.falconctl_info.cid
+        - info.falconctl_info.cid | default('', true) | length > 0
         - falconctl_result.changed
-      # noqa no-handler
 
     # Handle Master Image steps
     - name: CrowdStrike Falcon | Master Image Prep | Removing AID
       crowdstrike.falcon.falconctl:
-        aid: yes
+        aid: true
         state: absent
       when:
-        - falcon_remove_aid
+        - falcon_remove_aid is defined and falcon_remove_aid | bool
 
     - name: CrowdStrike Falcon | Master Image Prep | Set Provisioning Token (if applicable)
       crowdstrike.falcon.falconctl:
         cid: "{{ options.cid }}"
-        provisioning_token: "{{ options.provisioning_token }}"
+        provisioning_token: "{{ falcon_provisioning_token }}"
         state: present
       when:
-        - falcon_remove_aid
-        - options.cid | bool
-        - options.provisioning_token | bool
+        - falcon_remove_aid is defined and falcon_remove_aid | bool
+        - falcon_provisioning_token | default('', true) | length > 0
+
+    - name: CrowdStrike Falcon | Master Image Prep | Stop Falcon Sensor service
+      ansible.builtin.service:
+        name: falcon-sensor
+        state: stopped
+      when:
+        - falcon_remove_aid is defined and falcon_remove_aid | bool
 
 # Start of MacOSX Configuration
 - name: CrowdStrike Falcon | Stat Falcon Sensor (macOS)
@@ -76,7 +89,7 @@
   when:
     - ansible_facts['distribution'] == "MacOSX"
     - falconctl_mac.stat.exists
-  become: yes
+  become: true
   block:
     - name: CrowdStrike Falcon | Associate Falcon Sensor with your Customer ID (CID) (macOS)
       ansible.builtin.command: "/Applications/Falcon.app/Contents/Resources/falconctl license {{ falcon_cid }}"
@@ -116,6 +129,14 @@
       changed_when: falconctl_mac_tags_get.stdout != grouping_tags
       vars:
         grouping_tags: "Grouping tags: {{ falcon_tags }}"
+
+    - name: CrowdStrike Falcon | Apply maintenance token (macOS)
+      ansible.builtin.command: "/Applications/Falcon.app/Contents/Resources/falconctl unload --maintenance-token"
+      args:
+        stdin: "{{ falcon_maintenance_token }}"
+      changed_when: false
+      when:
+        - falcon_maintenance_token | default('', true) | length > 0
 
     - name: CrowdStrike Falcon | Set Grouping Tags (macOS)
       ansible.builtin.command: "/Applications/Falcon.app/Contents/Resources/falconctl grouping-tags set {{ falcon_tags }}"

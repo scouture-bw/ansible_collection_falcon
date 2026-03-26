@@ -23,16 +23,16 @@ __metaclass__ = type
 
 def check_falconpy_version(module):
     """Ensure FalconPy version is compatible."""
-    minumum_version = "1.3.0"
+    minimum_version = "1.3.0"
 
     if FALCONPY_IMPORT_ERROR:
         module.fail_json(
             msg=f"Unable to import FalconPy: {FALCONPY_IMPORT_ERROR}. See module documentation for help."
         )
 
-    if _VERSION < minumum_version:
+    if _VERSION < minimum_version:
         module.fail_json(
-            msg=f"Unsupported FalconPy version: {_VERSION}. Upgrade to {minumum_version} or higher."
+            msg=f"Unsupported FalconPy version: {_VERSION}. Upgrade to {minimum_version} or higher."
         )
 
 
@@ -143,6 +143,24 @@ def get_paginated_results_info(module, args, limit, method, list_name):
             running = False
 
     return result
+
+
+def sanitize_sensor_version(version):
+    """
+    Sanitize a sensor version string by removing any suffix (e.g., LTS designation).
+
+    The sensor update policy API may return versions with suffixes like "(LTS)".
+    The sensor download API requires clean version numbers without suffixes.
+
+    Args:
+        version: Version string (e.g., "7.32.20403 (LTS)" or "7.32.20403")
+
+    Returns:
+        Clean version string (e.g., "7.32.20403")
+    """
+    if not version or not isinstance(version, str):
+        return version
+    return version.split(" ")[0]
 
 
 def get_cloud_from_url(module, base_url):

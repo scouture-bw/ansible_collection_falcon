@@ -6,10 +6,10 @@
 #
 # Disabling this can expose your API credentials and authorization token.
 #
-falcon_api_enable_no_log: yes
+falcon_api_enable_no_log: true
 
 # Whether or not to allow downgrading the Falcon Sensor.
-falcon_allow_downgrade: no
+falcon_allow_downgrade: false
 
 # This installer is capable of three different installation
 # methods:
@@ -23,57 +23,55 @@ falcon_install_method: api
 # The local directory path to download the sensor to.
 # This is in relation to the localhost running the role.
 #
-# If path is not specified, a temporary directory will be created using the system's
-# default temporary directory.
+# By default, this will be the temp OS filesystem
 #
-falcon_api_sensor_download_path:
+falcon_api_sensor_download_path: "/tmp/falcon-sensor"
 
 # The name to save the sensor file as.
 #
 # If not specified, the file will be saved as the same name from the API.
 #
 falcon_api_sensor_download_filename:
-
 # The permissions of the downloaded sensor file.
 #
 # If not specified, the default permissions based on the OS/filesystem will be used.
 # Example: '0644'
 #
 falcon_api_sensor_download_mode:
-
 # The owner to set the downloaded sensor file as.
 #
 # If not specified, the default owner based on the OS/filesystem will be used.
 #
 falcon_api_sensor_download_owner:
-
 # The group to set the downloaded sensor file as.
 #
 # If not specified, the default group based on the OS/filesystem will be used.
 #
 falcon_api_sensor_download_group:
-
 # Whether or not to delete the downloaded sensor after transfer to remote host.
 #
 # By default, this is enabled.
 #
-falcon_api_sensor_download_cleanup: yes
+falcon_api_sensor_download_cleanup: true
 
 # If the installation method is 'file', provide the absolute path to the installer file.
 #
 falcon_localfile_path:
-
 # If the installation method is 'file', specify whether to remove the local file after installation.
 # By default, this is disabled in the event the falcon_localfile_path is set to a shared file
 # system location.
 #
-falcon_localfile_cleanup: no
+falcon_localfile_cleanup: false
 
-# Specify whether or not to verify the Falcon sensor Linux based packages.
+# Specify whether or not to verify the Falcon sensor packages via GPG signature verification.
 # By default, this is enabled - which will handle the installation and importing
-# of the CrowdStrike Falcon sensor GPG Key.
+# of the CrowdStrike Falcon sensor GPG Key for RPM-based systems only.
 #
-falcon_gpg_key_check: yes
+# Note: According to CrowdStrike's official installation documentation, GPG key
+# verification is only required for RPM-based systems (RHEL, CentOS, SLES, etc.).
+# DEB-based systems (Ubuntu, Debian) do not require GPG key verification.
+#
+falcon_gpg_key_check: true
 
 # CrowdStrike API Cloud region for downloading the Falcon sensor. Possible values:
 #       us-1:       api.crowdstrike.com
@@ -89,7 +87,6 @@ falcon_cloud: "us-1"
 #       applies to Windows installations.
 #
 falcon_cid:
-
 # 'Client ID' and 'Client Secret' for authentication against the CrowdStrike
 # API. If unknown, download from the CrowdStrike support portal:
 #
@@ -98,10 +95,24 @@ falcon_cid:
 falcon_client_id: ""
 falcon_client_secret: ""
 
+# Maintenance token for sensor operations when uninstall and maintenance protection is enabled.
+# Required for sensor versions 7.20+ when protection is armed during upgrades/downgrades.
+#
+# Examples:
+#   # Manual token
+#   falcon_maintenance_token: "your-token-here"
+#
+#   # Bulk token (recommended)
+#   falcon_maintenance_token: "{{ lookup('crowdstrike.falcon.maintenance_token', bulk=true) }}"
+#
+#   # Host-specific token
+#   falcon_maintenance_token: "{{ lookup('crowdstrike.falcon.maintenance_token', host_aid) }}"
+#
+falcon_maintenance_token:
 # The Falcon sensor version to install. This allows you to pin a specific sensor
 # version.
 #
-# NOTE: This variable will be overriden by falcon_sensor_update_policy_name.
+# NOTE: This variable will be overridden by falcon_sensor_update_policy_name.
 #
 falcon_sensor_version: ""
 
@@ -109,7 +120,7 @@ falcon_sensor_version: ""
 # Setting the value to 1 would install the sensor at N-1.
 # The value must be an integer between 0 and 5 inclusive.
 #
-# NOTE: This variable will be overriden by falcon_sensor_update_policy_name or falcon_sensor_version.
+# NOTE: This variable will be overridden by falcon_sensor_update_policy_name or falcon_sensor_version.
 #
 falcon_sensor_version_decrement: 0
 
@@ -125,17 +136,15 @@ falcon_sensor_update_policy_name: ""
 # Where should the sensor file be copied to on Linux and MacOS systems?
 # By default, this will be the temp OS filesystem
 #
-falcon_install_tmp_dir: "/tmp"
+falcon_install_tmp_dir: "/tmp/falcon-sensor"
 
 # If the installation method is 'url', provide the url for the sensor to
 # be downloaded from.
 #
 falcon_download_url:
-
 # If 'url' is authenticated, provide credentials.
 falcon_download_url_username:
 falcon_download_url_password:
-
 # If using 'api' or 'url' methods, the number of retries the
 # installer should attempt.
 #
@@ -160,7 +169,7 @@ falcon_windows_install_delay: 120
 #
 # For Windows, this can be "%SYSTEMROOT%\\Temp"
 #
-falcon_windows_tmp_dir: "%SYSTEMROOT%\\Temp"
+falcon_windows_tmp_dir: "%SYSTEMROOT%\\Temp\\falcon-sensor"
 
 # Additional install arguments beyond the default required
 #
@@ -168,11 +177,6 @@ falcon_windows_tmp_dir: "%SYSTEMROOT%\\Temp"
 #       re-add them here.
 #
 falcon_windows_install_args: "/norestart"
-
-# Additional arugments to uninstall the sensor.
-# You can add your maintenance token here by adding MAINTENANCE_TOKEN=<token>
-#
-falcon_windows_uninstall_args: "/norestart"
 
 # Ansible become toggle for Windows systems.
 # The default is true

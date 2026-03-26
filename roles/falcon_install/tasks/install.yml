@@ -1,7 +1,7 @@
 ---
 - name: CrowdStrike Falcon | Set default sensor name
   ansible.builtin.set_fact:
-    falcon_sensor_pkg: 'falcon-sensor'
+    falcon_sensor_pkg: "falcon-sensor"
   when:
     - falcon_sensor_pkg is not defined
 
@@ -9,30 +9,30 @@
   ansible.builtin.copy:
     src: "{{ item }}"
     dest: "{{ falcon_install_temp_directory.path }}/{{ item }}"
-    mode: 0640
-  changed_when: no
+    mode: "0640"
+  changed_when: false
   loop: "{{ falcon_gpg_keys }}"
   when:
-    - falcon_gpg_key_check
+    - falcon_gpg_key_check | bool
+    - ansible_facts['pkg_mgr'] in rpm_packagers
 
 - name: CrowdStrike Falcon | Import CrowdStrike Falcon RPM GPG key from files
   ansible.builtin.rpm_key:
     state: present
-    key: '{{ falcon_install_temp_directory.path }}/{{ item }}'
-  changed_when: no
+    key: "{{ falcon_install_temp_directory.path }}/{{ item }}"
+  changed_when: false
   loop: "{{ falcon_gpg_keys }}"
   when:
-    - falcon_gpg_key_check
+    - falcon_gpg_key_check | bool
     - ansible_facts['pkg_mgr'] in rpm_packagers
 
-- name: CrowdStrike Falcon | Import CrowdStrike Falcon APT GPG key from file
-  ansible.builtin.apt_key:
-    file: '{{ falcon_install_temp_directory.path }}/{{ latest_gpg_key }}'
+- name: CrowdStrike Falcon | Apply maintenance token (if sensor already installed - Linux)
+  crowdstrike.falcon.falconctl:
     state: present
-  changed_when: no
+    maintenance_token: "{{ falcon_maintenance_token }}"
   when:
-    - falcon_gpg_key_check
-    - ansible_facts['pkg_mgr'] in dpkg_packagers
+    - falcon_maintenance_token | default('', true) | length > 0
+    - falcon_sensor_installed | default(false)
 
 - name: CrowdStrike Falcon | Install Falcon Sensor Package (Linux)
   ansible.builtin.package:
@@ -43,6 +43,34 @@
     state: present
   when:
     - ansible_facts['pkg_mgr'] in linux_packagers
+  register: falcon_package_install
+
+# Handle use case for debian based package upgrades/downgrades
+- name: CrowdStrike Falcon | DEB package operation service management
+  when:
+    - ansible_facts['pkg_mgr'] in dpkg_packagers          # Only Debian-based systems
+    - falcon_sensor_installed | default(false)            # Only if sensor was already installed
+    - falcon_package_install.changed | default(false)     # Only if package actually changed
+  block:
+    - name: CrowdStrike Falcon | Reload systemd daemon after DEB package operation
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: CrowdStrike Falcon | Restart Falcon Sensor service after DEB package operation
+      ansible.builtin.systemd:
+        name: falcon-sensor
+        state: restarted
+        enabled: true
+
+- name: CrowdStrike Falcon | Apply maintenance token (if sensor already installed - macOS)
+  ansible.builtin.command: "/Applications/Falcon.app/Contents/Resources/falconctl unload --maintenance-token"
+  args:
+    stdin: "{{ falcon_maintenance_token }}"
+  changed_when: false
+  when:
+    - falcon_maintenance_token | default('', true) | length > 0
+    - falcon_sensor_installed | default(false)
+    - ansible_facts['distribution'] == "MacOSX"
 
 - name: CrowdStrike Falcon | Install Falcon Sensor .pkg Package (macOS)
   ansible.builtin.command: "/usr/sbin/installer -pkg {{ falcon_sensor_pkg }} -target /"
@@ -56,24 +84,11 @@
     manager: auto
   when: ansible_facts['distribution'] != "MacOSX"
 
-- name: CrowdStrike Falcon | Gather tmp install directory objects
-  ansible.builtin.find:
-    paths: "{{ falcon_install_tmp_dir }}"
-    patterns: "ansible.*falcon"
-    file_type: directory
-  register: falcon_tmp_dir_objects
-  when: falcon_install_tmp_dir | length > 0
-  changed_when: no
-
-- name: CrowdStrike Falcon | Remove tmp install directories
+- name: CrowdStrike Falcon | Remove tmp install directory
   ansible.builtin.file:
-    path: "{{ item.path }}"
+    path: "{{ falcon_install_tmp_dir }}"
     state: absent
-  loop: "{{ falcon_tmp_dir_objects.files }}"
-  when:
-    - falcon_install_tmp_dir | length > 0
-    - falcon_tmp_dir_objects is defined and falcon_tmp_dir_objects.files | length > 0
-  changed_when: no
+  changed_when: false
 
 - name: CrowdStrike Falcon | Remove Falcon Sensor Package (local file)
   ansible.builtin.file:
@@ -81,5 +96,5 @@
     state: absent
   when:
     - falcon_install_method == "file"
-    - falcon_localfile_cleanup
-  changed_when: no
+    - falcon_localfile_cleanup | bool
+  changed_when: false

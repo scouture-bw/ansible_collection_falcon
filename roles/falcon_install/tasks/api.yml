@@ -1,7 +1,7 @@
 ---
 - name: Sensor Update Policy Block
   when:
-    - falcon_sensor_update_policy_name
+    - falcon_sensor_update_policy_name | length > 0
   block:
     - name: "CrowdStrike Falcon | Build Sensor Update Policy API Query"
       ansible.builtin.set_fact:
@@ -16,37 +16,41 @@
       become: false
 
     - name: "CrowdStrike Falcon | Validate Sensor Update Policy request"
-      ansible.builtin.fail:
-        msg: "No Falcon Sensor Update Policy with name: {{ falcon_sensor_update_policy_name }} was found!"
-      when: falcon_sensor_update_policy_info.policies is not defined
+      ansible.builtin.assert:
+        that:
+          - falcon_sensor_update_policy_info.policies is defined
+        fail_msg: "No Falcon Sensor Update Policy with name: {{ falcon_sensor_update_policy_name }} was found!"
+        success_msg: "Falcon Sensor Update Policy {{ falcon_sensor_update_policy_name }} found successfully."
 
     - name: "CrowdStrike Falcon | Validate Sensor Update Policy request for aarch64 architectures"
-      ansible.builtin.fail:
-        msg: "No Falcon Sensor Update Policy with name: {{ falcon_sensor_update_policy_name }} and enabled for aarch64 was found!"
-      when:
-        - falcon_sensor_update_policy_info.policies[0].settings.variants[0] is not defined
-        - ansible_facts['machine'] == "aarch64"
+      ansible.builtin.assert:
+        that:
+          - falcon_sensor_update_policy_info.policies[0].settings.variants[0] is defined
+        fail_msg: "No Falcon Sensor Update Policy with name: {{ falcon_sensor_update_policy_name }} and enabled for aarch64 was found!"
+        success_msg: "Falcon Sensor Update Policy {{ falcon_sensor_update_policy_name }} found for aarch64 architecture."
+      when: ansible_facts['machine'] | default('') == "aarch64"
 
     - name: "CrowdStrike Falcon | Get the Falcon Sensor version from Update Policy"
       ansible.builtin.set_fact:
         falcon_sensor_update_policy_package_version: "{{ falcon_sensor_update_policy_info.policies[0].settings.sensor_version }}"
-      when: ansible_facts['machine'] != "aarch64"
+      when: ansible_facts['machine'] | default('') != "aarch64"
 
     - name: "CrowdStrike Falcon | Get the Falcon Sensor version from Update Policy for aarch64 architecture"
       ansible.builtin.set_fact:
         falcon_sensor_update_policy_package_version: "{{ falcon_sensor_update_policy_info.policies[0].settings.variants[0].sensor_version }}"
-      when: ansible_facts['machine'] == "aarch64"
+      when: ansible_facts['machine'] | default('') == "aarch64"
 
-    - name: CrowdStrike Falcon | Override falcon_sensor_version with version from Sensor Update Policy
+    - name: CrowdStrike Falcon | Build falcon_sensor_version_filter from Sensor Update Policy
       ansible.builtin.set_fact:
-        falcon_sensor_version: "+version:'{{ falcon_sensor_update_policy_package_version }}'"
-
+        falcon_sensor_version_filter: "+version:'{{ falcon_sensor_update_policy_package_version }}'"
 
 - name: "CrowdStrike Falcon | Build API Sensor Query"
   ansible.builtin.set_fact:
-    falcon_os_query: "os:'{{ falcon_target_os }}'+os_version:'{{ falcon_os_version }}'\
-      {{ falcon_os_arch | default('') }}{{ falcon_sensor_version | default('') }}"
-
+    falcon_os_query: >-
+      os:'{{ falcon_target_os }}'+
+      os_version:'{{ falcon_os_version }}'{{
+      falcon_os_arch | default('') }}{{
+      falcon_sensor_version_filter | default('') }}
 
 - name: CrowdStrike Falcon | Get list of filtered Falcon sensors
   crowdstrike.falcon.sensor_download_info:
@@ -57,10 +61,33 @@
   delegate_to: localhost
   become: false
 
-- name: CrowdStrike Falcon | Validate Sensor request
-  ansible.builtin.fail:
-    msg: "No Falcon Sensor was found! If passing in falcon_sensor_version, ensure it is correct!"
-  when: falcon_api_installer_list.installers[0] is not defined
+- name: CrowdStrike Falcon | Validate sensor request
+  ansible.builtin.assert:
+    that:
+      - falcon_api_installer_list.installers[0] is defined
+    fail_msg: "No Falcon sensor was found! If passing in falcon_sensor_version, ensure it is correct!"
+    success_msg: "Falcon sensor found successfully."
+
+- name: CrowdStrike Falcon | Validate available sensor count > decrement (if applicable)
+  ansible.builtin.assert:
+    that:
+      - falcon_api_installer_list.installers | length > falcon_sensor_version_decrement | int
+    fail_msg: >-
+      Not enough sensor versions available for the specified decrement value: N-{{ falcon_sensor_version_decrement }}.
+      This may occur if your OS distribution/version is newly supported and fewer historical sensor versions exist.
+  when:
+    - falcon_sensor_version_decrement is defined
+    - falcon_sensor_version_decrement | int > 0
+
+- name: CrowdStrike Falcon | Ensure download path exists (local)
+  ansible.builtin.file:
+    path: "{{ falcon_api_sensor_download_path }}"
+    state: directory
+    mode: "0755"
+  changed_when: false
+  delegate_to: localhost
+  become: false
+  run_once: true
 
 - name: CrowdStrike Falcon | Download Falcon Sensor Installation Package (local)
   crowdstrike.falcon.sensor_download:
@@ -80,7 +107,7 @@
   ansible.builtin.copy:
     src: "{{ falcon_sensor_download.path }}"
     dest: "{{ falcon_install_temp_directory.path }}"
-    mode: 0640
+    mode: "0640"
   changed_when: false
   register: falcon_sensor_copied
   when: ansible_os_family != "Windows"
@@ -88,20 +115,10 @@
 - name: CrowdStrike Falcon | Copy Sensor Installation Package to remote host (windows)
   ansible.windows.win_copy:
     src: "{{ falcon_sensor_download.path }}"
-    dest: "{{ falcon_install_win_temp_directory.path }}"
-    mode: 0640
+    dest: "{{ falcon_windows_tmp_dir_stat.stat.path }}"
   changed_when: false
   register: win_falcon_sensor_copied
   when: ansible_os_family == "Windows"
-
-- name: CrowdStrike Falcon | Remove Downloaded Sensor Installation Package (local)
-  ansible.builtin.file:
-    path: "{{ falcon_sensor_download.path }}"
-    state: absent
-  changed_when: false
-  delegate_to: localhost
-  become: false
-  when: falcon_api_sensor_download_cleanup
 
 - name: CrowdStrike Falcon | Set full file download path (non-windows)
   ansible.builtin.set_fact:

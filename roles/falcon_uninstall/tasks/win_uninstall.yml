@@ -2,9 +2,9 @@
 - name: CrowdStrike Falcon | Find Windows installer in Package Cache
   ansible.windows.win_find:
     paths: C:\ProgramData\Package Cache
-    patterns: ^(WindowsSensor.*\.)(exe)$
-    recurse: yes
-    use_regex: yes
+    patterns: ^((WindowsSensor|FalconSensor_Windows).*\.)(exe)$
+    recurse: true
+    use_regex: true
   register: falcon_win_sensor_cache
 
 - name: CrowdStrike Falcon | Remove Falcon Sensor (Windows)
@@ -12,14 +12,14 @@
     path: "{{ falcon_win_sensor_cache.files[0].path }}"
     state: absent
     creates_service: csfalconservice
-    arguments: '/uninstall /quiet {{ falcon_windows_uninstall_args }}'
+    arguments: "/uninstall /quiet {{ falcon_windows_uninstall_args }}"
   register: falcon_win_sensor_uninstall
   when:
-    - falcon_win_sensor_cache.files | length > 0
+    - falcon_win_sensor_cache.files | default('', true) | length > 0
     - ansible_facts['os_family'] == "Windows"
 
 - name: CrowdStrike Falcon | Wait for Falcon Sensor to be removed (Windows)
   ansible.windows.win_wait_for:
     path: C:\Windows\System32\drivers\CrowdStrike
     state: absent
-  when: falcon_win_sensor_uninstall.changed  # noqa: no-handler
+  when: falcon_win_sensor_uninstall.changed # noqa: no-handler
